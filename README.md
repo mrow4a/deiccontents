@@ -1,5 +1,5 @@
 # deiccontents
-Work in progress..
+Work in progress.. 
 
 Script deiccontents/deicmanager.py is overwriting functions from FileContentsManager of Jupyter, in order to have a notebook files being read from ownCloud webdav server and not from computing node filesystem. 
 
@@ -9,7 +9,13 @@ Installation:
 
 ``http://jupyter.readthedocs.org/en/latest/install.html``
 
-To start up notebook server use:
+Additionaly:
+
+create folder at e.g. ``~/Notebooks`` and ``cd ~/Notebooks`` to that location. It will be the location at which at this development stage Notebook files will be stored. Later on, the file list will be read/written/updated directly from webdav ownCloud server and there won't be a need of ``cd`` to any folder. Notebooks server could be started from any location on the DeIC Computing Node.
+
+
+
+To start up notebook server from ``Notebooks`` folder use:
 
 ``jupyter notebook --ip=(server ip addressm e.g. from ipconfig eth0) --no-browser --config=/home/origo/deiccontents/deiccontents.py ``
 
