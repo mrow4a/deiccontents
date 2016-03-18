@@ -77,7 +77,7 @@ class DeICContentsManager(FileContentsManager):
             model = super(DeICContentsManager, self)._notebook_model(path, content=content)
             """ """
         else:
-            """TODO"""
+            """FILE Model done"""
             if type == 'directory':
                 raise web.HTTPError(400,
                                 u'%s is not a directory' % path, reason='bad type')
