@@ -2,32 +2,32 @@ from notebook.services.contents.filemanager import FileContentsManager
 from notebook.services.contents.fileio import FileManagerMixin
 import os,sys
 from tornado import web
-import time
-from .utils import (
-    is_hidden,
-    to_api_path,
-)
-
+from .utils import *
 import owncloud
+import mimetypes
 
 def tmp_sync_with_oc():
-    #TMP TO HAVE BOTH NODES UP TO DATE
+    """"TMP TO HAVE BOTH NODES UP TO DATE 
+    After development, it should be deleted 
+    and no files should be residing on VM filesystem
+    """
     import subprocess
-    cmd = "owncloudcmd --trust --non-interactive ~/Notebooks https://data.deic.dk/remote.php/webdav/Notebooks"
+    cmd = "owncloudcmd --trust --non-interactive ~/Notebooks https://test1:dummy@test.data.deic.dk/remote.php/webdav/Notebooks"
     process = subprocess.Popen(cmd, shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     process.communicate()
     ####
 
 class DeICContentsManager(FileContentsManager):
     def __init__(self, *args, **kwargs):
-        print "init DeICContentsManager"
+        print "---->init DeICContentsManager"
+
         self.notebook_path = os.path.join('Notebooks')
-
-        self.oc = owncloud.Client('https://data.deic.dk/')
-        self.oc.login('', '')
-        #self.oc.__webdav_url = self.oc.__webdav_url + 'Notebooks'
+        self.oc = owncloud.Client('https://YOUR.SERVER/')
+        self.oc.login('YOUR_USER', 'YOUR_PASSWORD') #could be ('','') for passwordless login
+        
         super(DeICContentsManager, self).__init__(*args, **kwargs)
-
+        #print super(DeICContentsManager,self).parent.notebook_dir
+        
     def get(self, path, content=True, type=None, format=None):
         """ Takes a path for an entity and returns its model
         Parameters
@@ -48,99 +48,204 @@ class DeICContentsManager(FileContentsManager):
             the contents model. If content=True, returns the contents
             of the file or directory as well.
         """
-        print str(time.time()),"GET path:%s, content:%s, type:%s, format:%s"%(path,content,type,format)
+        
         if path=='':
-            print "sync with oc"
+            """this is a temporary solution in order to make development
+            easier by having webdav and jupyter up to date"""
+            
+            print "---->###REFRESH### sync with oc"
             tmp_sync_with_oc()
+        
         path = path.strip('/')
-
-        if not self.exists(path):
+        oc_path = os.path.join(self.notebook_path,path)
+        
+        print "-->",time_now(),"GET oc_path:%s, path:%s, content:%s, type:%s, format:%s"%(oc_path,path,content,type,format)
+        
+        file_info = self.oc_exists(oc_path)
+        if file_info==False:
             raise web.HTTPError(404, u'No such file or directory: %s' % path)
 
-        os_path = super(DeICContentsManager, self)._get_os_path(path)
-        if os.path.isdir(os_path):
+        if file_info.is_dir():
+            """DIR MODEL DONE"""
             if type not in (None, 'directory'):
                 raise web.HTTPError(400,
                                 u'%s is a directory, not a %s' % (path, type), reason='bad type')
-            model = self._dir_model(path, content=content)
+            model = self._dir_model(path,file_info, content=content)
+            """ """
         elif type == 'notebook' or (type is None and path.endswith('.ipynb')):
+            """TODO"""
             model = super(DeICContentsManager, self)._notebook_model(path, content=content)
+            """ """
         else:
+            """TODO"""
             if type == 'directory':
                 raise web.HTTPError(400,
                                 u'%s is not a directory' % path, reason='bad type')
-            model = super(DeICContentsManager, self)._file_model(path, content=content, format=format)
+            model = self._file_model(path, file_info, content=content, format=format)
+            """ """       
         return model
    
     def is_hidden(self, path):
+        """run custom is_hidden function from deiccontents utils"""
         return is_hidden(path)
     
     def file_exists(self, path):
-        print "in file_exists:",path
-        return super(DeICContentsManager, self).file_exists(path)
-    
-    def tmp_exists(self,path):
-        try:
-            self.oc.file_info(path)
+        path = path.strip('/')
+        path = os.path.join(self.notebook_path,path)  
+        print "--->in file_exists:",self.notebook_path,path
+        
+        file_info = self.oc_exists(path)
+        
+        if (file_info!=False and (not file_info.is_dir())):
             return True
+        
+        print "oc file does not exist!",path 
+        return False
+    
+    def oc_exists(self,path):
+        try:
+            file_info = self.oc.file_info(path)
+            if file_info==None:
+                return False
+            return file_info
         except:
             return False
-        
-    def is_dir(self,path):
-        if (self.oc.file_info(path)).file_type == 'dir':  
-            return True
-        return False
-
-    def dir_exists(self, path):
-        print "in dir_exists:",path
-        path = os.path.join(self.notebook_path,path)  
-        if self.tmp_exists(path):
-            if self.is_dir(path):
-                return True
-            return False
-        elif path=='':
-            if not self.is_dir(path):
-                self.oc.delete(self.notebook_path)
-            self.oc.mkdir(self.notebook_path)
-            return True
-        else:   
-            return False
     
-    def _dir_model(self, path, content=True):
+    def dir_exists(self, path):
+        """ensure that the remote owncloud dir exists
+        using self.oc client class
+        """
+        
+        path = path.strip('/')
+        path = os.path.join(self.notebook_path,path)  
+        
+        print "--->in dir_exists:",path
+        
+        file_info = self.oc_exists(path)
+        
+        if (file_info!=False and file_info.is_dir()):
+            return True
+        
+        print "oc folder does not exist!",path 
+        return False   
+    
+    def _oc_base_model(self,path, file_info):
+        """Build the common base of a contents dir model
+        This model is owncloud base model"""
+        # Create the base model.
+        
+        print "->base model", path
+        
+        model = {}
+        model['name'] = file_info.get_name()
+        model['path'] = path
+        model['last_modified'] = file_info.get_last_modified()
+        model['created'] = None
+        model['content'] = None
+        model['format'] = None
+        model['mimetype'] = None
+        model['writable'] = check_perm(file_info.attributes['{http://owncloud.org/ns}permissions'] \
+            ,"WCK")
+        
+        return model  
+
+    def get_file_contents(self,oc_path):
+        try:
+            file = self.oc.get_file_contents(oc_path)
+            if (file==False):
+                return None
+            return file
+        except:
+            return None
+        
+    def _read_file(self, oc_path, format):
+        """Read a non-notebook file.
+        os_path: The path to be read.
+        format:
+        If 'text', the contents will be decoded as UTF-8.
+        If 'base64', the raw bytes contents will be encoded as base64.
+        If not specified, try to decode as UTF-8, and fall back to base64
+        """
+        
+        bcontent = self.get_file_contents(oc_path)
+        
+        if bcontent is None:
+            raise web.HTTPError(400, "Cannot read non-file %s" % oc_path)
+    
+        if format is None or format == 'text':
+            # Try to interpret as unicode if format is unknown or if unicode
+            # was explicitly requested.
+            try:
+                return bcontent.decode('utf8'), 'text'
+            except UnicodeError:
+                if format == 'text':
+                    raise HTTPError(
+                        400,
+                        "%s is not UTF-8 encoded" % os_path,
+                        reason='bad format',
+                    )
+        return encodebytes(bcontent).decode('ascii'), 'base64'   
+                 
+    def _file_model(self, path, dir_info, content=True, format=None):
+        """Build a model for a file
+        if content is requested, include the file contents.
+        format:
+          If 'text', the contents will be decoded as UTF-8.
+          If 'base64', the raw bytes contents will be encoded as base64.
+          If not specified, try to decode as UTF-8, and fall back to base64
+        """
+        
+        oc_path = os.path.join(self.notebook_path,path)
+               
+        model = self._oc_base_model(path,dir_info)
+        model['type'] = 'file'
+        
+        model['mimetype'] = mimetypes.guess_type(oc_path)[0]
+
+        if content:
+            content, format = self._read_file(dir_info.path, format)
+            if model['mimetype'] is None:
+                default_mime = {
+                    'text': 'text/plain',
+                    'base64': 'application/octet-stream'
+                }[format]
+                model['mimetype'] = default_mime
+
+            model.update(
+                content=content,
+                format=format,
+            )
+
+        return model
+    
+    def _dir_model(self, path, dir_info, content=True):
         """Build a model for a directory
         if content is requested, will include a listing of the directory
         """
-        os_path = super(DeICContentsManager, self)._get_os_path(path)
-        four_o_four = u'directory does not exist: %r' % path
-
-        if not os.path.isdir(os_path):
-            raise web.HTTPError(404, four_o_four)
-        elif is_hidden(os_path, super(DeICContentsManager, self).root_dir):
+        oc_path = dir_info.path
+        four_o_four = u'directory does not exist: %r' % oc_path
+        
+        if is_hidden(oc_path, self.notebook_path):
             super(DeICContentsManager, self).log.info("Refusing to serve hidden directory %r, via 404 Error",
-                os_path
+                oc_path
             )
             raise web.HTTPError(404, four_o_four)
 
-        model = super(DeICContentsManager, self)._base_model(path)
+        model = self._oc_base_model(path,dir_info)
         model['type'] = 'directory'
         if content:
             model['content'] = contents = []
-            os_dir = super(DeICContentsManager, self)._get_os_path(path)
-            for name in os.listdir(os_dir):
-                try:
-                    os_path = os.path.join(os_dir, name)
-                except UnicodeDecodeError as e:
-                    super(DeICContentsManager, self).log.warn(
-                        "failed to decode filename '%s': %s", name, e)
-                    continue
-                # skip over broken symlinks in listing
-                if not os.path.exists(os_path):
-                    super(DeICContentsManager, self).log.warn("%s doesn't exist", os_path)
-                    continue
-                elif not os.path.isfile(os_path) and not os.path.isdir(os_path):
-                    super(DeICContentsManager, self).log.debug("%s not a regular file", os_path)
-                    continue
-                if super(DeICContentsManager, self).should_list(name) and not is_hidden(os_path, self.root_dir):
+            oc_list = self.oc.list(oc_path)
+            
+            for file_info in oc_list:
+                name = file_info.get_name()
+                file_path = os.path.join(oc_path, name)
+                
+                if file_info==None:
+                    super(DeICContentsManager, self).log.debug("%s not a regular file"\
+                        , file_path)
+                if super(DeICContentsManager, self).should_list(name) \
+                 and not is_hidden(file_path, self.notebook_path):
                     contents.append(self.get(
                         path='%s/%s' % (path, name),
                         content=False)

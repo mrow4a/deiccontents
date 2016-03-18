@@ -1,9 +1,17 @@
 import os, stat, sys
 import ctypes
+import time
 # UF_HIDDEN is a stat flag not defined in the stat module.
 # It is used by BSD to indicate hidden files.
 UF_HIDDEN = getattr(stat, 'UF_HIDDEN', 32768)
 _win32_FILE_ATTRIBUTE_HIDDEN = 0x02
+
+def check_perm(permision, req_perm):
+    if bool(set(list(permision)).intersection(list(req_perm))):
+        print permision,req_perm, 1
+        return True
+    print permision,req_perm, 0
+    return False
 
 def is_hidden(abs_path, abs_root=''):
     """Is a file hidden or contained in a hidden directory?
@@ -21,47 +29,20 @@ def is_hidden(abs_path, abs_root=''):
         The absolute path of the root directory in which hidden directories
         should be checked for.
     """
-    print "in is_hidden:, abs_path:%s, abs_root:%s"%(abs_path,abs_root)
     
     if not abs_root:
         abs_root = abs_path.split(os.sep, 1)[0] + os.sep
     inside_root = abs_path[len(abs_root):]
+    print "--->in is_hidden:, abs_path:%s, abs_root:%s, \
+     inside_root:%s"%(abs_path,abs_root,inside_root)
+
     if any(part.startswith('.') for part in inside_root.split(os.sep)):
         return True
-    
-    # check that dirs can be listed
-    # may fail on Windows junctions or non-user-readable dirs
-    if os.path.isdir(abs_path):
-        try:
-            os.listdir(abs_path)
-        except OSError:
-            return True
-    
-    # check UF_HIDDEN on any location up to root
-    path = abs_path
-    while path and path.startswith(abs_root) and path != abs_root:
-        if not os.path.exists(path):
-            path = os.path.dirname(path)
-            continue
-        try:
-            # may fail on Windows junctions
-            st = os.stat(path)
-        except OSError:
-            return True
-        if getattr(st, 'st_flags', 0) & UF_HIDDEN:
-            return True
-        path = os.path.dirname(path)
-    
-    if sys.platform == 'win32':
-        try:
-            attrs = ctypes.windll.kernel32.GetFileAttributesW(py3compat.cast_unicode(path))
-        except AttributeError:
-            pass
-        else:
-            if attrs > 0 and attrs & _win32_FILE_ATTRIBUTE_HIDDEN:
-                return True
 
     return False
+
+def time_now():
+    return time.asctime( time.localtime(time.time()))
 
 def to_api_path(os_path, root=''):
     """Convert a filesystem path to an API path

@@ -1,9 +1,51 @@
-# deiccontents
-Work in progress.. 
+#Work in progress.. 
+
+DONE:
+
+* Read normal files from the webdav server.
+* Read the directory structure of webdav directory contents Notebooks/ - after running Jupyter, directory structure is being read directly from webdav. 
+* Prepared class in order to easily add new components and features.
+* Proper commenting structure to ease teamwork in order to understand the way the notebook works.
+
+TODO:
+
+[for the development purposes, Jupyter server directory and webdav server is synced with normal owncloudcmd client, so that jupyter server works without most of the features]
+
+* Save notebook in webdav
+* Read notebook from webdav
+* Save file in webdav
+* Create directory
+* Implementation of checkpoints (save file dynamicaly in webdav)
+* Upload file to webdav via Jupyter
+
+#WebDav deiccontents (will work with all owncloud installations)
 
 Script deiccontents/deicmanager.py is overwriting functions from FileContentsManager of Jupyter, in order to have a notebook files being read from ownCloud webdav server and not from computing node filesystem. 
 
 Script deiccontents/utils.py is set of utilities for deicmanager
+
+#Instalation
+
+Change this lines:
+
+``
+self.oc = owncloud.Client("https://YOUR.SERVER/")
+self.oc.login("YOUR_USER", "YOUR_PASSWORD") could be ("","") for passwordless login
+``
+
+Recommended installation:
+
+``https://www.continuum.io/downloads``
+
+Be sure you are accepting prepending .bashrc during installation.
+
+``conda install pip``
+
+``pip install pyocclient``
+
+temporarily, for development purposes, install owncloud ``https://software.opensuse.org/download/package?project=isv:ownCloud:desktop&package=owncloud-client``
+
+Now, to run default notebook server ``jupyter notebook``
 
 Installation:
 
@@ -11,13 +53,11 @@ Installation:
 
 Additionaly:
 
-create folder at e.g. ``~/Notebooks`` and ``cd ~/Notebooks`` to that location. It will be the location at which at this development stage Notebook files will be stored. Later on, the file list will be read/written/updated directly from webdav ownCloud server and there won't be a need of ``cd`` to any folder. Notebooks server could be started from any location on the DeIC Computing Node.
-
-
+create folder at e.g. ``~/Notebooks``. It will be the location at which at this development stage Notebook files will be stored. Later on, the file list will be read/written/updated directly from webdav ownCloud server and there won't be a need of ``cd`` to any folder. Notebooks server could be started from any location on the DeIC Computing Node.
 
 To start up notebook server from ``Notebooks`` folder use:
 
-``jupyter notebook --ip=(server ip addressm e.g. from ipconfig eth0) --no-browser --config=/home/origo/deiccontents/deiccontents.py ``
+``jupyter notebook --ip={server ip address e.g. from ipconfig eth0} --no-browser --config={path to your dir with content manager}/deiccontents/deiccontents.py --notebook-dir={path to your dir with Notebooks}/Notebooks``
 
 #Installing new notebooks
 e.g.
