@@ -12,7 +12,7 @@ def tmp_sync_with_oc():
     and no files should be residing on VM filesystem
     """
     import subprocess
-    cmd = "owncloudcmd --trust --non-interactive ~/Notebooks https://test1:dummy@test.data.deic.dk/remote.php/webdav/Notebooks"
+    cmd = "owncloudcmd --trust --non-interactive ~/Notebooks https://"YOUR_LOGIN:YOUR_PASSWORD@YOUR_SERVER"/remote.php/webdav/Notebooks"
     process = subprocess.Popen(cmd, shell=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     process.communicate()
     ####
